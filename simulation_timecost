@@ -1,0 +1,66 @@
+import osmnx as ox
+import networkx as nx
+from typing import Callable
+from Dijkstra import Dijkstra
+from A_star import AStar
+
+def total_travel_time(G):
+    for u, v, data in G.edges(data=True):  # Iterate over all edges
+        length = data.get("length", 0)
+        if length == 0:
+            print(f"Edge {u}->{v} is missing length or has length 0.")
+
+        maxspeed = data.get("maxspeed", "50")  # Default to 50 km/h
+        if isinstance(maxspeed, list):  # Handle multiple speed limits
+            maxspeed = maxspeed[0]
+        try:
+            speed = float(maxspeed.split()[0])  # Extract numerical value
+        except ValueError:
+            speed = 50  # Default to 50 km/h
+
+        # Convert speed from km/h to m/s
+        speed_mps = speed * 1000 / 3600
+
+        # Calculate travel time (seconds) and add it to edge attributes
+        if speed_mps > 0:
+            calculated_travel_time = length / speed_mps
+        else:
+            calculated_travel_time = float('inf')  # Untraversable edge
+        data["travel_time"] = calculated_travel_time
+        #print(f"Edge {u} -> {v}: Length = {length}, Maxspeed = {maxspeed}, Travel Time = {total_travel_time}")
+
+def time_sum(G, path):
+    total_time = 0
+    for i in range(len(path) - 1):
+        u, v = path[i], path[i + 1]
+        edge = G[u][v][0]  # First edge in multigraph
+        total_time += edge.get("travel_time", 0)
+    return total_time
+
+city = "Berlin, Germany"
+G = ox.graph_from_place(city, network_type="drive")
+origin = (52.521918, 13.413215) #Alexanderplatz
+destination = (52.516275, 13.377704) #Brandenburg Tor
+
+start_node = ox.nearest_nodes(G, origin[1],origin[0])
+end_node = ox.nearest_nodes(G,destination[1],destination[0])
+total_travel_time(G)
+'''for u, v, data in G.edges(data=True):
+    print(f"Edge {u} -> {v}: Travel Time = {data.get('travel_time')}")
+    break  # Print one edge for verification
+'''
+dijkstra = Dijkstra()
+dijkstra_path, dijkstra_cost  = dijkstra.dijkstra(G,start=start_node,end=end_node, attribute="length")
+dijkstra_time = time_sum(G,dijkstra_path)
+
+print("Dijkstra:")
+print("Path: ", dijkstra_path)
+print("Cost (meter): ", dijkstra_cost)
+print("Travel time in m/s: ", dijkstra_time)
+'''for u, v, data in G.edges(data=True):
+    print(f"Edge {u} -> {v}:")
+    print(f"  Length: {data.get('length')}")
+    print(f"  Maxspeed: {data.get('maxspeed')}")
+    print(f"  Travel Time: {data.get('travel_time')}")
+    break  # Print one edge to check
+'''
