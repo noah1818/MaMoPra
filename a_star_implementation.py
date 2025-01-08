@@ -39,10 +39,39 @@ import heapq
 import math
 from typing import Tuple, Callable, List
 import networkx as nx
+from shapely.geometry import LineString
+
 
 class AStar:
     def __init__(self) -> None:
         pass
+
+    def calculate_turn_angle(self, graph: nx.DiGraph, u: str, v: str, w: str) -> float:
+        """
+        Calculate the angle between two edges (u->v and v->w).
+        """
+        try:
+            edge1 = LineString([(graph.nodes[u]['x'], graph.nodes[u]['y']),
+                                (graph.nodes[v]['x'], graph.nodes[v]['y'])])
+            edge2 = LineString([(graph.nodes[v]['x'], graph.nodes[v]['y']),
+                                (graph.nodes[w]['x'], graph.nodes[w]['y'])])
+
+            # Calculate the vectors
+            vector1 = (edge1.coords[1][0] - edge1.coords[0]
+                       [0], edge1.coords[1][1] - edge1.coords[0][1])
+            vector2 = (edge2.coords[1][0] - edge2.coords[0]
+                       [0], edge2.coords[1][1] - edge2.coords[0][1])
+
+            # Compute the dot product and magnitudes
+            dot_product = vector1[0] * vector2[0] + vector1[1] * vector2[1]
+            magnitude1 = math.sqrt(vector1[0] ** 2 + vector1[1] ** 2)
+            magnitude2 = math.sqrt(vector2[0] ** 2 + vector2[1] ** 2)
+
+            # Compute the angle in radians and convert to degrees
+            angle = math.acos(dot_product / (magnitude1 * magnitude2))
+        except Exception as excp:
+            return 0
+        return math.degrees(angle)
 
     def euclidean_distance(self, graph: nx.DiGraph, node1: str, node2: str) -> float:
         """Calculate the Euclidean distance between two nodes based on their (x, y) coordinates."""
@@ -50,7 +79,13 @@ class AStar:
         x2, y2 = graph.nodes[node2]['x'], graph.nodes[node2]['y']
         return math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-    def a_star(self, graph: nx.DiGraph, start: str, goal: str, heuristic: Callable[[nx.DiGraph, str, str], float], attribute="travel_time") -> Tuple[List[str], float]:
+    def get_elevation_difference(self, graph: nx.DiGraph, node1: str, node2: str) -> float:
+        elevation_current = graph.nodes[node1].get('elevation', 0)
+        elevation_goal = graph.nodes[node2].get('elevation', 0)
+        # Penalize uphill only
+        return max(0, elevation_goal - elevation_current)
+
+    def a_star(self, graph: nx.DiGraph, start: str, goal: str, custom_heuristic: bool, heuristic: Callable[[nx.DiGraph, str, str], float], attribute: str = "travel_time", alpha: float = .5) -> Tuple[List[str], float]:
         """Perform A* pathfinding on a networkx graph."""
         open_set = [(0, start)]  # (f_score, node)
         came_from = {}  # To reconstruct the path
@@ -70,20 +105,29 @@ class AStar:
                     path.append(current_node)
                     current_node = came_from[current_node]
                 path.append(start)
-                return path[::-1], g_score[goal]
+                # we return the cummulative cost, to reach the goal from the start
+                cum_atttribute: float = 0
+                for a, b in zip(path[::-1], path[::-1][1:]):
+                    cum_atttribute += graph[a][b].get(attribute)
+                return path[::-1], cum_atttribute
 
             # Explore neighbors of the current node
             for neighbor in graph.neighbors(current_node):
-                weight = graph[current_node][neighbor].get(attribute, 1)  # Default weight is 1 if not specified
-                tentative_g_score = g_score[current_node] + weight
+                tentative_g_score = g_score[current_node] + \
+                    graph[current_node][neighbor].get(attribute)
 
                 # If this path is better, update the path to the neighbor
                 if tentative_g_score < g_score[neighbor]:
                     came_from[neighbor] = current_node
                     g_score[neighbor] = tentative_g_score
-                    h_score = heuristic(graph, neighbor, goal)
-                    f_score[neighbor] = tentative_g_score + h_score
-                    #tentative_g_score +  h_score
+
+                    if custom_heuristic:
+                        f_score[neighbor] = heuristic(graph, neighbor, goal) + alpha * self.get_elevation_difference(
+                            graph, neighbor, goal) + (1 - alpha) * self.calculate_turn_angle(graph, current_node, neighbor, goal)
+                    else:
+                        f_score[neighbor] = g_score[neighbor] + \
+                            heuristic(graph, neighbor, goal)
+                    # tentative_g_score +  h_score
                     heapq.heappush(open_set, (f_score[neighbor], neighbor))
 
         # If the goal was never reached, return None or a large cost
