@@ -3,6 +3,8 @@ import networkx as nx
 from typing import Callable
 from Dijkstra import Dijkstra
 from A_star import AStar
+import time
+import tracemalloc
 
 def total_travel_time(G):
     for u, v, data in G.edges(data=True):  # Iterate over all edges
@@ -37,10 +39,10 @@ def time_sum(G, path):
         total_time += edge.get("travel_time", 0)
     return total_time
 
-city = "Berlin, Germany"
+city = "Houston, Texas, USA"
 G = ox.graph_from_place(city, network_type="drive")
-origin = (52.521918, 13.413215) #Alexanderplatz
-destination = (52.516275, 13.377704) #Brandenburg Tor
+origin = (29.749907, -95.358421)  # Houston City Hall
+destination = (29.735641, -95.393067)  # Hermann Park
 
 start_node = ox.nearest_nodes(G, origin[1],origin[0])
 end_node = ox.nearest_nodes(G,destination[1],destination[0])
@@ -49,14 +51,20 @@ total_travel_time(G)
     print(f"Edge {u} -> {v}: Travel Time = {data.get('travel_time')}")
     break  # Print one edge for verification
 '''
+
+
+start_time = time.time()
 dijkstra = Dijkstra()
-dijkstra_path, dijkstra_cost  = dijkstra.dijkstra(G,start=start_node,end=end_node, attribute="length")
+dijkstra_path, dijkstra_distance  = dijkstra.get_shortest_path(G,start=start_node,goal=end_node, attribute="length")
 dijkstra_time = time_sum(G,dijkstra_path)
 
+print("Execution Time: ---%s seconds --- " % (time.time()-start_time))
 print("Dijkstra:")
 print("Path: ", dijkstra_path)
-print("Cost (meter): ", dijkstra_cost)
+print("Distance (meter): ", dijkstra_distance)
 print("Travel time in m/s: ", dijkstra_time)
+
+
 '''for u, v, data in G.edges(data=True):
     print(f"Edge {u} -> {v}:")
     print(f"  Length: {data.get('length')}")
@@ -64,3 +72,4 @@ print("Travel time in m/s: ", dijkstra_time)
     print(f"  Travel Time: {data.get('travel_time')}")
     break  # Print one edge to check
 '''
+
